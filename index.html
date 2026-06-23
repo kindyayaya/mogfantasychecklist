@@ -85,16 +85,15 @@
         .item-row:last-child { border-bottom: none; }
         .item-row:hover { background-color: #f8fafc; }
         
-        /* 當右側「隱藏」被勾選時的樣式 */
         .item-row.hidden-item {
             background-color: #f8fafc;
             opacity: 0.35;
         }
         .item-row.hidden-item .left-part {
-            pointer-events: none; /* 隱藏時無法點擊左側勾選計算 */
+            pointer-events: none;
         }
         .item-row.hidden-item .num-input {
-            background-color: #e2e8f0;
+            background-color: transparent !important;
             pointer-events: none;
         }
 
@@ -112,6 +111,13 @@
             cursor: pointer;
             flex-shrink: 0;
         }
+        
+        .item-name-wrapper {
+            display: inline-flex;
+            align-items: center;
+            min-width: 0;
+            flex: 1;
+        }
         .item-name {
             font-size: 15px;
             font-weight: 500;
@@ -119,6 +125,25 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        #global-tooltip {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            width: max-content;
+            max-width: 220px;
+            background-color: rgba(15, 23, 42, 0.95);
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: normal;
+            line-height: 1.4;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+            pointer-events: none;
+        }
+
         .right-part {
             display: flex;
             align-items: center;
@@ -138,7 +163,31 @@
             font-size: 14px;
         }
         
-        /* 右側隱藏控制框自訂樣式 */
+        /* 💡 核心修改一：調整金額呈現與「置中對齊」 */
+        .price-input[readonly] {
+            width: 80px;                   /* 固定寬度，與上方標頭字寬貼合 */
+            background-color: transparent; 
+            color: #1e293b;                
+            border: none;                  
+            cursor: default;               
+            font-weight: 500;              
+            text-align: center;            /* 讓金額數字「置中對齊」 */
+            padding: 6px 0;
+        }
+        /* 隱藏數字輸入框內建的上下調整箭頭 */
+        .price-input::-webkit-outer-spin-button,
+        .price-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .price-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .item-row.checked .price-input {
+            color: #166534;
+        }
+        
         .hide-control-label {
             display: flex;
             align-items: center;
@@ -157,7 +206,6 @@
         }
 
         .item-row.checked { background-color: #f0fdf4; }
-        /* 💡 這裡已經幫你把 text-decoration: line-through 移除了！ 勾選時字體不會再有刪除線 */
         .item-row.checked .item-name { color: #166534; }
         
         .total-section {
@@ -174,8 +222,12 @@
             box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
         }
         .total-amount { font-size: 26px; }
+        
+        /* 💡 核心修改二：微調標頭與內容欄位的欄寬分配，達成完美對齊 */
         .header-item-name { flex: 2; }
-        .header-item-controls { display: flex; gap: 40px; padding-right: 15px; flex-shrink: 0; }
+        .header-item-controls { display: flex; gap: 15px; padding-right: 0px; flex-shrink: 0; align-items: center; }
+        .header-price-txt { width: 80px; text-align: center; } /* 標頭文字也固定 80px 且置中 */
+        .header-count-txt { width: 84px; text-align: center; } /* 購買數量標頭對齊 */
         .header-hide-txt { width: 45px; text-align: center; }
     </style>
 </head>
@@ -183,7 +235,8 @@
 
 <div class="container">
     <h1 id="mainTitle">莫古莫古大收集-我要肝多少?</h1>
-    
+    <div class="subtitle">資料來源：FFXIV官網、灰基</div>
+    <div class="subtitle">可能有地圖名稱、後期副本與腳色名稱雷</div>
     <div class="action-bar">
         <button class="clear-btn" onclick="resetToDefault()">🔄 完全重設</button>
     </div>
@@ -191,14 +244,14 @@
     <div class="table-header">
         <span class="header-item-name">兌換道具</span>
         <div class="header-item-controls">
-            <span>神典石</span>
-            <span>兌換數</span>
+            <span class="header-price-txt">神典石</span>
+            <span class="header-count-txt">兌換數</span>
             <span class="header-hide-txt">完成</span>
         </div>
     </div>
 
     <ul class="checklist" id="checklist">
-        </ul>
+    </ul>
 
     <div class="total-section">
         <span>還需要：</span>
@@ -209,36 +262,76 @@
     </div>
 </div>
 
+<div id="global-tooltip"></div>
+
 <script>
-    // 56 項完全體正確資料
     const defaultData = [
-        {name: "猴面雀耳墜", val: 100}, {name: "火神夾克衫", val: 50}, {name: "暗影玲龍魔笛", val: 50},
-        {name: "飛隼號啟動鑰匙", val: 50}, {name: "魔法飛床", val: 50}, {name: "天佑裝甲", val: 50},
-        {name: "小小古代人", val: 50}, {name: "管弦樂琴樂譜：原始的墮天使", val: 50}, {name: "髮型樣式：髮箍式編髮", val: 30},
-        {name: "趣味圓點陽傘", val: 30}, {name: "演技教材‧背靠", val: 30}, {name: "金碟幣白金卡", val: 30},
-        {name: "水龍蜥角笛", val: 30}, {name: "炸彈角笛", val: 30}, {name: "夢幻神威魔笛", val: 30},
-        {name: "青君神威魔笛", val: 30}, {name: "森林舊椅子", val: 20}, {name: "配藥工作臺", val: 20},
-        {name: "花樣蠟燭套裝", val: 20}, {name: "貓小胖地毯", val: 20}, {name: "鬆軟鬆餅套餐", val: 20},
-        {name: "風精靈娃娃", val: 15}, {name: "斯卡拉禦敵長衣", val: 15}, {name: "斯卡拉禦敵軟甲褲", val: 15},
-        {name: "斯卡拉制敵長衣", val: 15}, {name: "斯卡拉制敵軟甲褲", val: 15}, {name: "斯卡拉強襲長衣", val: 15},
-        {name: "斯卡拉強襲下身", val: 15}, {name: "斯卡拉游擊短衣", val: 15}, {name: "斯卡拉游擊垮褲", val: 15},
-        {name: "斯卡拉精準長衣", val: 15}, {name: "斯卡拉精準下身", val: 15}, {name: "斯卡拉詠咒長袍", val: 15},
-        {name: "斯卡拉詠咒垮褲", val: 15}, {name: "斯卡拉治癒短衣", val: 15}, {name: "斯卡拉治癒下身", val: 15},
-        {name: "陳舊的地圖S1", val: 15}, {name: "陳舊的地圖S2", val: 15}, {name: "陳舊的地圖S3", val: 15},
-        {name: "陳舊的地圖S4", val: 15}, {name: "德拉瓦尼亞雲海詳細地圖", val: 10}, {name: "阿巴拉提亞雲海詳細地圖", val: 10},
-        {name: "魔大陸阿濟茲拉詳細地圖", val: 10}, {name: "紅玉海詳細地圖", val: 10}, {name: "延夏詳細地圖", val: 10},
-        {name: "太陽神草原詳細地圖", val: 10}, {name: "九宮幻卡：智蛙", val: 10}, {name: "九宮幻卡：奧諾魯瓦", val: 10},
-        {name: "九宮幻卡：漆黑導師", val: 7}, {name: "九宮幻卡：光之戰士（漆黑）", val: 7}, {name: "九宮幻卡：伊甸之約", val: 7},
-        {name: "小鴨嘴獸", val: 7}, {name: "豬小仙", val: 7}, {name: "管弦樂琴樂譜：夢園之門", val: 7}, 
-	{name: "克里耶蘿蔔 ×5", val: 5}, {name: "魔法棱晶（職業大師）×5", val: 1}
+        {name: "猴面雀耳墜", val: 100, desc: "活動專屬，總之很難拿"}, 
+        {name: "火神夾克衫", val: 50, desc: "活動跟特典，總之很難拿"}, 
+        {name: "暗影玲龍魔笛", val: 50, desc: "80等殲滅 極黑帝斯"},
+        {name: "飛隼號啟動鑰匙", val: 50, desc: "活動專屬，總之很難拿"}, 
+        {name: "魔法飛床", val: 50, desc: "製作材料G12寶圖掉落"}, 
+        {name: "天佑裝甲", val: 50, desc: "5版博茲雅戰線 女王古殿掉落"},
+        {name: "小小古代人", val: 50, desc: "80等副本 黑風海底阿尼德羅追憶館"}, 
+        {name: "管弦樂琴樂譜：原始的墮天使", val: 50, desc: "5版大型任務 共鳴2掉落"}, 
+        {name: "髮型樣式：髮箍式編髮", val: 30, desc: "4版優雷卡火島兔子寶箱掉落"},
+        {name: "趣味圓點陽傘", val: 30, desc: "5版博茲雅晶簇兌換"}, 
+	{name: "演技教材‧背靠", val: 30, desc: "3版蒼天街兌換/重建慶典禮物箱/7.2版宇宙探索"}, 
+	{name: "金碟幣白金卡", val: 30, desc: "3版天書奇談功能 兩條線以上，可以換5萬金碟幣"},
+        {name: "水龍蜥角笛", val: 30, desc: "2版魚人友好部族信賴以上12萬購買"}, 
+	{name: "炸彈角笛", val: 30, desc: "2版地靈友好部族信賴以上12萬購買"}, 
+	{name: "夢幻神威魔笛", val: 30, desc: "70等殲滅 極神龍"},
+        {name: "青君神威魔笛", val: 30, desc: "70等殲滅 極青龍"}, 
+	{name: "森林舊椅子", val: 20},
+	{name: "配藥工作臺", val: 20},
+        {name: "花樣蠟燭套裝", val: 20}, 
+	{name: "貓小胖地毯", val: 20}, 
+	{name: "鬆軟鬆餅套餐", val: 20},
+        {name: "風精靈娃娃", val: 15, desc: "2版風精友好部族信賴以上2.5萬購買"}, 
+	{name: "斯卡拉禦敵長衣", val: 15, desc: "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉禦敵軟甲褲", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"},
+        {name: "斯卡拉制敵長衣", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉制敵軟甲褲", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉強襲長衣", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"},
+        {name: "斯卡拉強襲下身", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉游擊短衣", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉游擊垮褲", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"},
+        {name: "斯卡拉精準長衣", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉精準下身", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉詠咒長袍", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"},
+        {name: "斯卡拉詠咒垮褲", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉治癒短衣", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"}, 
+	{name: "斯卡拉治癒下身", val: 15, desc:  "70等副本 沉默神殿斯卡拉遺跡"},
+        {name: "陳舊的地圖S1", val: 15, desc: "70等 8人 必出紋 可堆疊"}, 
+        {name: "陳舊的地圖S2", val: 15, desc: "80等 8人 必出紋 可堆疊"}, 
+        {name: "陳舊的地圖S3", val: 15, desc: "90等 8人 必出紋 可堆疊"},
+        {name: "陳舊的地圖S4", val: 15, desc: "90等 8人 必出紋 可堆疊"}, 
+        {name: "德拉瓦尼亞雲海詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"}, 
+	{name: "阿巴拉提亞雲海詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"},
+        {name: "魔大陸阿濟茲拉詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"}, 
+	{name: "紅玉海詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"}, 
+	{name: "延夏詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"},
+        {name: "太陽神草原詳細地圖", val: 10, desc: "3/4版狩獵 兵團徽章250"}, 
+	{name: "九宮幻卡：智蛙", val: 10, desc: "3版田園郡 (x6.7 y7.4) 對戰取得，要先打完啟動之章"}, 
+	{name: "九宮幻卡：奧諾魯瓦", val: 10, desc: "3版福爾唐家的管家對戰取得"},
+        {name: "九宮幻卡：漆黑導師", val: 7, desc: "80等副本 漆黑宮殿宇宙宮"}, 
+	{name: "九宮幻卡：光之戰士（漆黑）", val: 7, desc: "80等殲滅 普通/幻 光之戰士"}, 
+	{name: "九宮幻卡：伊甸之約", val: 7, desc: "5版大型任務 普通/零式 再生4"}, 
+        {name: "小鴨嘴獸", val: 7, desc: "5版狩獵 戰利品250"}, 
+	{name: "豬小仙", val: 7, desc: "園藝雇員森林25，6版深層迷宮正統優雷卡"}, 
+	{name: "管弦樂琴樂譜：夢園之門", val: 7, desc: "5版仙子友好部族血誓 8個代幣兌換"}, 
+        {name: "克里耶蘿蔔 ×5", val: 5}, 
+	{name: "魔法棱晶（職業大師）×5", val: 1}
     ];
 
     document.addEventListener("DOMContentLoaded", () => {
         initWebData();
+        setupTooltipEvents();
     });
 
     function initWebData() {
-        const savedData = localStorage.getItem('mogchecklistv0.03');
+        // 💡 換成 v15 金鑰
+        const savedData = localStorage.getItem('mogchecklistv0.45');
         const checklistUl = document.getElementById('checklist');
         checklistUl.innerHTML = '';
 
@@ -251,10 +344,11 @@
                 name: item.name,
                 price: item.val,
                 count: 1,
+                desc: item.desc || item.name,
                 isChecked: false,
                 isHidden: false
             }));
-            localStorage.setItem('mogchecklistv0.03', JSON.stringify(listToRender));
+            localStorage.setItem('mogchecklistv0.45', JSON.stringify(listToRender));
         }
 
         listToRender.forEach(item => {
@@ -277,10 +371,12 @@
         li.innerHTML = `
             <label class="left-part">
                 <input type="checkbox" class="item-checkbox" ${item.isChecked ? 'checked' : ''} onchange="handleRowChange(this)">
-                <span class="item-name" title="${item.name}">${item.name}</span>
+                <div class="item-name-wrapper" data-tooltip="${item.desc}">
+                    <span class="item-name">${item.name}</span>
+                </div>
             </label>
             <div class="right-part">
-                <div class="input-group"><input type="number" class="num-input price-input" value="${item.price}" min="0" oninput="saveAndCalculate()"></div>
+                <div class="input-group"><input type="number" class="num-input price-input" value="${item.price}" readonly></div>
                 <div class="input-group"><input type="number" class="num-input count-input" value="${item.count}" min="1" oninput="saveAndCalculate()"></div>
                 <label class="hide-control-label" title="${item.isHidden ? '按錯了，還沒集完' : '達成請打勾（總數扣除）'}">
                     <input type="checkbox" class="hide-checkbox" ${item.isHidden ? 'checked' : ''} onchange="toggleHide(this)">
@@ -288,6 +384,35 @@
             </div>
         `;
         checklistUl.appendChild(li);
+    }
+
+    function setupTooltipEvents() {
+        const tooltip = document.getElementById('global-tooltip');
+        const checklist = document.getElementById('checklist');
+
+        checklist.addEventListener('mouseover', (e) => {
+            const wrapper = e.target.closest('.item-name-wrapper');
+            if (wrapper) {
+                const text = wrapper.getAttribute('data-tooltip');
+                tooltip.innerText = text;
+                tooltip.style.display = 'block';
+            }
+        });
+
+        checklist.addEventListener('mousemove', (e) => {
+            const wrapper = e.target.closest('.item-name-wrapper');
+            if (wrapper) {
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+            }
+        });
+
+        checklist.addEventListener('mouseout', (e) => {
+            const wrapper = e.target.closest('.item-name-wrapper');
+            if (wrapper) {
+                tooltip.style.none = tooltip.style.display = 'none';
+            }
+        });
     }
 
     function handleRowChange(checkbox) {
@@ -325,11 +450,12 @@
             const price = parseFloat(row.querySelector('.price-input').value) || 0;
             const count = parseFloat(row.querySelector('.count-input').value) || 0;
             const isHidden = row.querySelector('.hide-checkbox').checked;
+            const desc = row.querySelector('.item-name-wrapper').getAttribute('data-tooltip');
 
-            currentList.push({ id, name, price, count, isChecked, isHidden });
+            currentList.push({ id, name, price, count, isChecked, isHidden, desc });
         });
 
-        localStorage.setItem('mogchecklistv0.03', JSON.stringify(currentList));
+        localStorage.setItem('mogchecklistv0.45', JSON.stringify(currentList));
         calculateTotal();
     }
 
@@ -352,7 +478,7 @@
 
     function resetToDefault() {
         if (confirm("確定要重設網頁，清除所有的勾選與隱藏狀態嗎？")) {
-            localStorage.removeItem('mogchecklistv0.03');
+            localStorage.removeItem('mogchecklistv0.45');
             initWebData();
         }
     }
