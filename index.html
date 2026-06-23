@@ -238,7 +238,7 @@
     });
 
     function initWebData() {
-        const savedData = localStorage.getItem('mogchecklistv0.02');
+        const savedData = localStorage.getItem('mogchecklistv0.03');
         const checklistUl = document.getElementById('checklist');
         checklistUl.innerHTML = '';
 
@@ -254,7 +254,7 @@
                 isChecked: false,
                 isHidden: false
             }));
-            localStorage.setItem('mogchecklistv0.02', JSON.stringify(listToRender));
+            localStorage.setItem('mogchecklistv0.03', JSON.stringify(listToRender));
         }
 
         listToRender.forEach(item => {
@@ -329,7 +329,7 @@
             currentList.push({ id, name, price, count, isChecked, isHidden });
         });
 
-        localStorage.setItem('mogchecklistv0.02', JSON.stringify(currentList));
+        localStorage.setItem('mogchecklistv0.03', JSON.stringify(currentList));
         calculateTotal();
     }
 
@@ -352,7 +352,7 @@
 
     function resetToDefault() {
         if (confirm("確定要重設網頁，清除所有的勾選與隱藏狀態嗎？")) {
-            localStorage.removeItem('mogchecklistv0.02');
+            localStorage.removeItem('mogchecklistv0.03');
             initWebData();
         }
     }
